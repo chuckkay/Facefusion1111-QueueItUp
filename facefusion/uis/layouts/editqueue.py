@@ -6,7 +6,7 @@ from facefusion.uis.components import frame_processors, frame_processors_options
 ABOUT_BUTTON = gradio.Button(
     value = "MORE FEATURES COMING SOON",
     variant = 'primary',
-    link = 'https://github.com/chuckkay/facefusion-QueueItUp'
+    link = 'https://github.com/chuckkay/Facefusion-QueueItUp-sd-webui'
     )
 DONATE_BUTTON = gradio.Button(
     value = "DONATE",
