@@ -291,7 +291,7 @@ def run_job_args(current_run_job):
     # Specify the Python interpreter from the venv
     print(simulated_cmd)
     venv_python = "C:\\AI\\automatic1111\\venv\\Scripts\\python.exe"
-    process = subprocess.Popen(f"{venv_python} {facefusion_dir}\\run.py {simulated_cmd}", shell=True)
+    process = subprocess.Popen(f"{venv_python} {facefusion_dir}\\run2.py {simulated_cmd}", shell=True)
     print (process)
     # Wait for the process to complete and check its return code
     return_code = process.wait()
