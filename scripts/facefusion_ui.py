@@ -14,7 +14,7 @@ from facefusion.processors.frame.modules import (
     frame_colorizer,
     lip_syncer,
 )
-from facefusion.uis.layouts import default, webcam #, benchmark
+from facefusion.uis.layouts import QueueItUp, editqueue, webcam #, benchmark
 
 
 def on_ui_tabs():
@@ -35,8 +35,10 @@ def on_ui_tabs():
         or not lip_syncer.pre_check()
     ):
         return
-
-    if not default.pre_check():
+    if not QueueItUp.pre_check():
+        return
+        
+    if not editqueue.pre_check():
         return
         
 #    if not benchmark.pre_check():
@@ -46,10 +48,14 @@ def on_ui_tabs():
         return
 
     with gr.Blocks() as block:
-        with gr.Tab("Default"):
-            if default.pre_render():
-                default.render()
-                default.listen()
+        with gr.Tab("Facefusion with QueueItUp"):
+            if QueueItUp.pre_render():
+                QueueItUp.render()
+                QueueItUp.listen()
+        with gr.Tab("Edit Queue"):
+            if editqueue.pre_render():
+                editqueue.render()
+                editqueue.listen()
 #        with gr.Tab("Benchmark"):
 #            if benchmark.pre_render():
 #                benchmark.render()
