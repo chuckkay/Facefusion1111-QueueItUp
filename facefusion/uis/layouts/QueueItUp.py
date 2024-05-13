@@ -1,5 +1,5 @@
 import multiprocessing
-import gradio as gr
+import gradio
 import os
 import re
 import sys
@@ -33,55 +33,55 @@ def pre_render() -> bool:
     return True
 
 
-
-def render() -> gr.Blocks:
+defaults = {}
+def render() -> gradio.Blocks:
     global ADD_JOB_BUTTON, RUN_JOBS_BUTTON, status_window
-    with gr.Blocks() as layout:
-        with gr.Row():
-            with gr.Column(scale = 2):
-                with gr.Blocks():
+    with gradio.Blocks() as layout:
+        with gradio.Row():
+            with gradio.Column(scale = 2):
+                with gradio.Blocks():
                     about.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     frame_processors.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     frame_processors_options.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     execution.render()
                     execution_thread_count.render()
                     execution_queue_count.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     memory.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     temp_frame.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     output_options.render()
-            with gr.Column(scale = 2):
-                with gr.Blocks():
+            with gradio.Column(scale = 2):
+                with gradio.Blocks():
                     source.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     target.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     output.render()
-                # with gr.Blocks():
+                # with gradio.Blocks():
                     # status_window.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     ADD_JOB_BUTTON.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     RUN_JOBS_BUTTON.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     EDIT_JOB_BUTTON.render()
-            with gr.Column(scale = 3):
-                with gr.Blocks():
+            with gradio.Column(scale = 3):
+                with gradio.Blocks():
                     preview.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     trim_frame.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     face_selector.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     face_masker.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     face_analyser.render()
-                with gr.Blocks():
+                with gradio.Blocks():
                     common_options.render()
     return layout
 
@@ -111,11 +111,42 @@ def listen() -> None:
     face_analyser.listen()
     common_options.listen()
 
+def extract_defaults_from_cli(defaults):
+    with open(os.path.join(base_dir, f"facefusion/core.py"), "r") as file:
+        cli_source = file.read()
+    pattern = r"add_argument\('--([^']+)'.*?default\s*=\s*(?:config.get_(?:str|int|float)_value\('[^']+',\s*'([^']+)'\)|config.get_(?:str|int|float)_list\('[^']+',\s*'([^']+)'\)|config.get_(?:str|int|float)_value\('[^']+'\)|([^,]+))"
+    matches = re.findall(pattern, cli_source)
+    defaults = {}
+    for match in matches:
+        key, default, default_list, _ = match
+        default = default or default_list
+        if default:
+            if default.lower() == "false":
+                default = False
+            elif default.lower() == "true":
+                default = True
+            elif default.isdigit():
+                default = int(default)
+            elif default.replace(".", "", 1).isdigit():
+                default = float(default)
+            elif default.startswith("[") and default.endswith("]"):
+                default = default.strip("[]").split(", ")
+            else:
+                default = default.strip("'\"")
+        else:
+            default = None
+        defaults[key.replace('-', '_')] = default
+    return defaults
 
 
 def assemble_queue():
     global RUN_JOBS_BUTTON, ADD_JOB_BUTTON, jobs_queue_file, jobs
     # default_values are already initialized, do not call for new default values
+    default_values = extract_defaults_from_cli(defaults)
+    with open(os.path.join(working_dir, f"default_values.txt"), "w") as file:
+        for key, val in default_values.items():
+            file.write(f"{key}: {val}\n")
+        
     current_values = get_values_from_globals('current_values')
 
 
@@ -246,7 +277,6 @@ def assemble_queue():
         custom_print(f"{BLUE}Your Job was Added to the queue,{ENDC} there are a total of {GREEN}#{PENDING_JOBS_COUNT} Job(s){ENDC} in the queue,  Add More Jobs, Edit the Queue,\n\n or Click Run Queue to Execute all the queued jobs\n\n")
 
 def run_job_args(current_run_job):
-
     if isinstance(current_run_job['sourcecache'], list):
         arg_source_paths = ' '.join(f'-s "{p}"' for p in current_run_job['sourcecache'])
     else:
@@ -257,8 +287,20 @@ def run_job_args(current_run_job):
 
     simulated_args = f"{arg_source_paths} {arg_target_path} {arg_output_path} {current_run_job['headless']} {current_run_job['job_args']}"
     simulated_cmd = simulated_args.replace('\\\\', '\\')
-    result = subprocess.run(f"python {facefusion_dir}\\run.py {simulated_cmd}")
+    
+    # Specify the Python interpreter from the venv
+    print(simulated_cmd)
+    venv_python = "C:\\AI\\automatic1111\\venv\\Scripts\\python.exe"
+    process = subprocess.Popen(f"{venv_python} {facefusion_dir}\\run.py {simulated_cmd}", shell=True)
+    print (process)
+    # Wait for the process to complete and check its return code
+    return_code = process.wait()
+    if return_code == 0:
+        current_run_job['status'] = 'completed'
+    else:
+        current_run_job['status'] = 'failed'
 
+    return return_code
 
 def execute_jobs():
     global JOB_IS_RUNNING, JOB_IS_EXECUTING,CURRENT_JOB_NUMBER,jobs_queue_file, jobs
@@ -345,7 +387,7 @@ def execute_jobs():
 
 def edit_queue():
     global root, frame, output_text, edit_queue_window, jobs_queue_file, jobs, job
-    EDIT_JOB_BUTTON = gr.Button("Edit Queue")
+    EDIT_JOB_BUTTON = gradio.Button("Edit Queue")
     jobs = load_jobs(jobs_queue_file)  
     root = tk.Tk()
     root.geometry('1200x800')
@@ -888,7 +930,7 @@ def get_values_from_globals(state_name):
     
     from facefusion.processors.frame import globals as frame_processors_globals, choices as frame_processors_choices
 
-    modules = [facefusion.globals, frame_processors_globals]  # List of modules to extract values from
+    modules = [facefusion.globals, frame_processors_globals]  
 
     for module in modules:
         for attr in dir(module):
@@ -1136,9 +1178,10 @@ def preprocess_execution_providers(data):
 ##################################
 #Globals and toggles
 # for Automatic1111 replace script_root and base_dir with this 
-base_dir = tempfile.gettempdir()
+# base_dir = tempfile.gettempdir()
 script_root = os.path.dirname(os.path.abspath(__file__))
-facefusion_dir = os.path.dirname(os.path.dirname(os.path.dirname(script_root)))
+base_dir = os.path.dirname(os.path.dirname(os.path.dirname(script_root)))
+facefusion_dir = base_dir
 # Appending 'QueueItUp' to the adjusted base directory
 user_dir = "QueueItUp"
 working_dir = os.path.normpath(os.path.join(base_dir, user_dir))
@@ -1148,9 +1191,9 @@ jobs_queue_file = os.path.normpath(os.path.join(working_dir, "jobs_queue.json"))
 
 debugging = True
 keep_completed_jobs = False
-ADD_JOB_BUTTON = gr.Button("Add Job ", variant="primary")
-RUN_JOBS_BUTTON = gr.Button("Run Jobs", variant="primary")
-EDIT_JOB_BUTTON = gr.Button("Edit Jobs")
+ADD_JOB_BUTTON = gradio.Button("Add Job ", variant="primary")
+RUN_JOBS_BUTTON = gradio.Button("Run Jobs", variant="primary")
+EDIT_JOB_BUTTON = gradio.Button("Edit Jobs")
 #status_priority = {'editing': 0, 'pending': 1, 'failed': 2, 'executing': 3, 'completed': 4}
 JOB_IS_RUNNING = 0
 JOB_IS_EXECUTING = 0
@@ -1181,7 +1224,7 @@ check_for_completed_failed_or_aborted_jobs()
 custom_print(f"{GREEN}STATUS CHECK COMPLETED. {BLUE}You are now ready to QUEUE IT UP!{ENDC}")
 print_existing_jobs()
 
-def run(ui: gr.Blocks) -> None:
+def run(ui: gradio.Blocks) -> None:
     global server
     concurrency_count = min(8, multiprocessing.cpu_count())
     ui.queue(concurrency_count=concurrency_count).launch(show_api=False, inbrowser=True, quiet=False)
