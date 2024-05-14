@@ -32,11 +32,8 @@ onnxruntime.set_default_logger_severity(3)
 warnings.filterwarnings('ignore', category = UserWarning, module = 'gradio')
 
 
-def get_argument_parser():
-	try:
-		signal.signal(signal.SIGINT, lambda signal_number, frame: destroy())
-	except ValueError:
-		pass
+def cli() -> None:
+	signal.signal(signal.SIGINT, lambda signal_number, frame: destroy())
 	program = ArgumentParser(formatter_class = lambda prog: HelpFormatter(prog, max_help_position = 160), add_help = False)
 	# general
 	program.add_argument('-s', '--source', help = wording.get('help.source'), action = 'append', dest = 'source_paths', default = config.get_str_list('general.source_paths'))
@@ -108,10 +105,8 @@ def get_argument_parser():
 	available_ui_layouts = list_directory('facefusion/uis/layouts')
 	group_uis = program.add_argument_group('uis')
 	group_uis.add_argument('--ui-layouts', help = wording.get('help.ui_layouts').format(choices = ', '.join(available_ui_layouts)), default = config.get_str_list('uis.ui_layouts', 'default'), nargs = '+')
-	return program
-    
-def cli() -> None:
-	run(get_argument_parser())
+	run(program)
+
 
 def validate_args(program : ArgumentParser) -> None:
 	try:
@@ -127,7 +122,7 @@ def validate_args(program : ArgumentParser) -> None:
 
 
 def apply_args(program : ArgumentParser) -> None:
-	args = program.parse_args([])
+	args = program.parse_args()
 	# general
 	facefusion.globals.source_paths = args.source_paths
 	facefusion.globals.target_path = args.target_path
