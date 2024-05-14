@@ -140,9 +140,7 @@ def extract_defaults_from_cli(defaults):
         else:
             default = None
         defaults[key.replace('-', '_')] = default
-    
-    defaults2 = core.args    
-    print(defaults2)    
+        
         
     return defaults
 
