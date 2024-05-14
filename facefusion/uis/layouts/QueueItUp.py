@@ -37,7 +37,6 @@ def pre_render() -> bool:
     return True
 
 
-defaults = {}
 def render() -> gradio.Blocks:
     global ADD_JOB_BUTTON, RUN_JOBS_BUTTON, status_window
     with gradio.Blocks() as layout:
@@ -297,13 +296,9 @@ def run_job_args(current_run_job):
     setattr(facefusion.globals, ui_layouts, ['QueueItUp'])
 
     # Specify the Python interpreter from the venv
-    print(simulated_cmd)
-    venv_python = "C:\\AI\\automatic1111\\venv\\Scripts\\python.exe"
-  # process = subprocess.Popen(f"{venv_python} {facefusion_dir}\\run.py {simulated_cmd}", shell=True)
-    process = subprocess.Popen(f"{venv_python} {facefusion_dir}\\run2.py {simulated_cmd}", shell=True)
-    print (process)
-    # Wait for the process to complete and check its return code
-    return_code = process.wait()
+    result = subprocess.Popen(f"{venv_python} {base_dir}\\run2.py {simulated_cmd}", shell=True)
+    # Check the return code
+    return_code = result.returncode
     if return_code == 0:
         current_run_job['status'] = 'completed'
     else:
@@ -352,19 +347,19 @@ def execute_jobs():
 
         custom_print(f"{BLUE}Job #{CURRENT_JOB_NUMBER} will be doing {YELLOW}{printjobtype}{ENDC} - with source {GREEN}{source_basenames}{ENDC} to -> target {GREEN}{os.path.basename(current_run_job['targetcache'])}{ENDC}\n\n")
 
-#######################################
+########
         run_job_args(current_run_job)
- #######################################
-        current_run_job['status'] = 'completed'
+########
+
 
         if current_run_job['status'] == 'completed':
-            custom_print(f"{BLUE}Job # {CURRENT_JOB_NUMBER} {GREEN} completed successfully {BLUE}{PENDING_JOBS_COUNT} jobs remaining, pausing 5 seconds before starting next job{ENDC}\n")
+            custom_print(f"{BLUE}Job # {CURRENT_JOB_NUMBER} {GREEN} completed successfully {BLUE}{PENDING_JOBS_COUNT} jobs remaining, pausing 1 second before starting next job{ENDC}\n")
         else:
             source_basenames = [os.path.basename(path) for path in current_run_job['sourcecache']] if isinstance(current_run_job['sourcecache'], list) else [os.path.basename(current_run_job['sourcecache'])]
             custom_print(f"{BLUE}Job # {CURRENT_JOB_NUMBER} {RED} failed. Please check the validity of {source_basenames} and {RED}{os.path.basename(current_run_job['targetcache'])}.{BLUE}{PENDING_JOBS_COUNT} jobs remaining, pausing 5 seconds before starting next job{ENDC}\n")
 
         JOB_IS_EXECUTING = 0  # Reset the job execution flag
-        time.sleep(5)
+        time.sleep(1)
         jobs = load_jobs(jobs_queue_file)
         jobs = [job for job in jobs if job['status'] != 'executing']
         jobs.append(current_run_job)
@@ -587,7 +582,6 @@ def edit_queue():
             save_jobs(jobs_queue_file, jobs)
             update_job_listbox()
 
-###########################
     def edit_job_arguments_text(job):
         job_args = job.get('job_args', '')
         preprocessed_defaults = preprocess_execution_providers(default_values)
@@ -676,8 +670,111 @@ def edit_queue():
         scrollable_frame.update_idletasks()
         canvas.configure(scrollregion=canvas.bbox("all"))
         edit_arg_window.mainloop()
+        
 
-############################
+    def Batch_job(job):
+        file_types = []
+        target_filetype = None
+        source_or_target = None
+
+        if 'sourcecache' not in job:
+            messagebox.showerror("Error", "Job does not contain 'sourcecache'.")
+            return
+
+        if 'targetcache' not in job:
+            messagebox.showerror("Error", "Job does not contain 'targetcache'.")
+            return
+
+        # Ensure sourcecache is always a list
+        if isinstance(job['sourcecache'], str):
+            job['sourcecache'] = [job['sourcecache']]
+
+        current_extension = job['targetcache'].lower().rsplit('.', 1)[-1]
+        if current_extension in ['jpg', 'jpeg', 'png']:
+            target_filetype = 'Image'
+        elif current_extension in ['mp4', 'mov', 'avi', 'mkv']:
+            target_filetype = 'Video'
+
+        def on_use_source():
+            nonlocal source_or_target
+            source_or_target = 'target'
+            dialog.destroy()
+            open_file_dialog()
+
+        def on_use_target():
+            nonlocal source_or_target
+            source_or_target = 'source'
+            if any(ext in src.lower() for ext in ['.mp3', '.wav', '.aac'] for src in job['sourcecache']):
+                messagebox.showinfo("BatchItUp Error", "Sorry, BatchItUp cannot clone lipsync jobs yet.")
+                dialog.destroy()
+                return
+
+            if len(job['sourcecache']) > 1:
+                source_filenames = [os.path.basename(src) for src in job['sourcecache']]
+                proceed = messagebox.askyesno(
+                    "BatchItUp Multiple Faces",
+                    f"Your current source contains multiple faces ({', '.join(source_filenames)}). BatchItUp cannot create multiple target {target_filetype} jobs while still maintaining multiple source faces. "
+                    f"If you click 'Yes' to proceed, you will get 1 target {target_filetype} for each source face you select in the next file dialog, but you can use the edit queue window "
+                    f"to add more source faces to each job created after BatchItUp has created them. Do you want to proceed?"
+                )
+                if not proceed:
+                    dialog.destroy()
+                    return
+            dialog.destroy()
+            open_file_dialog()
+
+        def open_file_dialog():
+            selected_paths = []
+            if source_or_target == 'source':
+                selected_paths = filedialog.askopenfilenames(
+                    title="Select Multiple targets for BatchItUp to make multiple cloned job using each File",
+                    filetypes=[('Image files', '*.jpg *.jpeg *.png')]
+                )
+            elif source_or_target == 'target':
+                file_types = [('Image files', '*.jpg *.jpeg *.png')] if target_filetype == 'Image' else [('Video files', '*.mp4 *.avi *.mov *.mkv')]
+                selected_paths = filedialog.askopenfilenames(
+                    title="Select Multiple sources for BatchItUp to make multiple cloned job using each File",
+                    filetypes=file_types
+                )
+            if selected_paths:
+                copy_to_media_cache(selected_paths)
+                for path in selected_paths:
+                    add_new_job = job.copy()  # Copy the existing job to preserve other attributes
+                    add_new_job[source_or_target + 'cache'] = path
+                    jobs.append(add_new_job)
+                save_jobs(jobs_queue_file, jobs)
+                update_job_listbox()
+
+        dialog = tk.Toplevel()
+        dialog.withdraw()
+
+        # Creating the welcome message box with two buttons
+        source_filenames = [os.path.basename(src) for src in job['sourcecache']]
+        message = (
+            f"Welcome to the BatchItUp feature. Here you can add multiple batch jobs with just a few clicks.\n\n"
+            f"Click the 'Use Source' button to select as many target {target_filetype}s as you like and BatchItUp will create a job for each {target_filetype} "
+            f"using {', '.join(source_filenames)} as the source image(s), OR you can Click 'Use Target' to select as many Source Images as you like and BatchItUp will "
+            f"create a job for each source image using {os.path.basename(job['targetcache'])} as the target {target_filetype}."
+        )
+
+        dialog.deiconify()
+        dialog.geometry("500x300")
+        dialog.title("BatchItUp")
+
+        label = tk.Label(dialog, text=message, wraplength=450, justify="left")
+        label.pack(pady=20)
+
+        button_frame = tk.Frame(dialog)
+        button_frame.pack(pady=10)
+
+        use_source_button = tk.Button(button_frame, text="Use Source", command=on_use_source)
+        use_source_button.pack(side="left", padx=10)
+
+        use_target_button = tk.Button(button_frame, text="Use Target", command=on_use_target)
+        use_target_button.pack(side="left", padx=10)
+
+        dialog.mainloop()
+
     def select_job_file(parent, job, source_or_target):
         file_types = []
         if source_or_target == 'source':
@@ -880,22 +977,25 @@ def edit_queue():
                 print("Failed to create source button.")
 
             # Frame to hold the arrow label and archive button
-            action_archive_frame = tk.Frame(job_frame)
-            action_archive_frame.pack(side='left', fill='x', padx=5)
+            action_frame = tk.Frame(job_frame)
+            action_frame.pack(side='left', fill='x', padx=5)
             
 
-            arrow_label = Label(action_archive_frame, text=f"{job['status']}\n\u27A1", font=bold_font)
+            arrow_label = Label(action_frame, text=f"{job['status']}\n\u27A1", font=bold_font)
             arrow_label.pack(side='top', padx=5)
             
-            output_path_button = tk.Button(action_archive_frame, text="Output Path", command=lambda j=job: output_path_job(j))
+            output_path_button = tk.Button(action_frame, text="Output Path", command=lambda j=job: output_path_job(j))
             output_path_button.pack(side='top', padx=2)
                         
-            delete_button = tk.Button(action_archive_frame, text=" Delete ", command=lambda j=job: delete_job(j))
+            delete_button = tk.Button(action_frame, text=" Delete ", command=lambda j=job: delete_job(j))
             delete_button.pack(side='top', padx=2)
             
-            archive_button = tk.Button(action_archive_frame, text="Archive",command=lambda j=job: archive_job(j))
+            archive_button = tk.Button(action_frame, text="Archive",command=lambda j=job: archive_job(j))
             archive_button.pack(side='top', padx=2)
-
+            
+            Batch_button = tk.Button(action_frame, text="BatchItUp",command=lambda j=job:  Batch_job(j))
+            Batch_button.pack(side='top', padx=2)
+            
             target_frame = tk.Frame(job_frame)
             target_frame.pack(side='left', fill='x', padx=5)
             target_button = create_job_thumbnail(job_frame, job,source_or_target = 'target')
@@ -1186,11 +1286,9 @@ def preprocess_execution_providers(data):
 #startup_init_checks_and_cleanup     
 ##################################
 #Globals and toggles
-# for Automatic1111 replace script_root and base_dir with this 
-# base_dir = tempfile.gettempdir()
 script_root = os.path.dirname(os.path.abspath(__file__))
 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(script_root)))
-facefusion_dir = base_dir
+venv_python = os.path.normpath(os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'venv', 'scripts', 'python.exe'))
 # Appending 'QueueItUp' to the adjusted base directory
 user_dir = "QueueItUp"
 working_dir = os.path.normpath(os.path.join(base_dir, user_dir))
@@ -1210,6 +1308,7 @@ PENDING_JOBS_COUNT = 0
 CURRENT_JOB_NUMBER = 0
 edit_queue_window = 0
 image_references = {}
+defaults = {}
     # ANSI Color Codes     
 RED = '\033[91m'     #use this  
 GREEN = '\033[92m'     #use this  
@@ -1217,7 +1316,7 @@ YELLOW = '\033[93m'     #use this
 BLUE = '\033[94m'     #use this  
 ENDC = '\033[0m'       #use this    Resets color to default
 custom_print("Base Directory:", base_dir)
-custom_print("Facefusion Directory:", facefusion_dir)
+custom_print("Venv Python Path:", venv_python)
 custom_print("Working Directory:", working_dir)
 custom_print("Media Cache Directory:", media_cache_dir)
 custom_print("Jobs Queue File:", jobs_queue_file)
