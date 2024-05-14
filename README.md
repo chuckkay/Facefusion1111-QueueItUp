@@ -1,4 +1,5 @@
- **Facefusion QueueItUp 2.5.3 for sd-webui**
+ **Facefusion QueueItUp 2.5.3.9 for sd-webui**  Now with added BatchItUp feature
+
  Automatic 1111
 ![Screenshot 2024-04-09 174800](https://github.com/chuckkay/QueueItUp/assets/10617746/65cd8c2f-1192-4bde-a3e6-39540cee42bc)
 
@@ -12,6 +13,7 @@ put this in your automatic1111 extensions install from url tab
 https://github.com/chuckkay/Facefusion-QueueItUp-sd-webui.git
 click install
 restart when done...
+unfortunitly you will need to install windows version of cuda dev toolkit 12.1 and cudnn in order for the queued jobs to execute using cuda.
 enjoy
 
 **Features of QueueItUp:**
