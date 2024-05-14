@@ -22,7 +22,11 @@ from tkinter import filedialog, Text, font, Toplevel, messagebox, PhotoImage, Tk
 from io import BytesIO
 import facefusion.globals
 from facefusion import core
+from facefusion import core2
+
 import facefusion.core as core
+import facefusion.core2 as core2
+
 from facefusion.uis.components import about, frame_processors, frame_processors_options, execution, execution_thread_count, execution_queue_count, memory, temp_frame, output_options, common_options, source, target, output, preview, trim_frame, face_analyser, face_selector, face_masker
 
 
@@ -136,6 +140,10 @@ def extract_defaults_from_cli(defaults):
         else:
             default = None
         defaults[key.replace('-', '_')] = default
+    
+    defaults2 = core.args    
+    print(defaults2)    
+        
     return defaults
 
 
@@ -229,7 +237,7 @@ def assemble_queue():
     if debugging:
         with open(os.path.join(working_dir, "arguments.txt"), "w") as file:
             file.write(json.dumps(arguments) + "\n")
-    job_args = f" {arguments}"
+    job_args = f"{arguments}"
 
     custom_print(f"{GREEN}Target file{ENDC} copied to Media Cache folder: {GREEN}{os.path.basename(cache_target_path)}{ENDC}\n\n")
     
@@ -240,7 +248,7 @@ def assemble_queue():
         "job_args": job_args,
         "status": "pending",
         "headless": "--headless",
-        "frame_processors": ['face_swapper', 'face_enhancer'],
+        "frame_processors": current_values['frame_processors'],
         "sourcecache": (cache_source_paths),
         "targetcache": (cache_target_path),
         "output_path": (output_path),
@@ -287,10 +295,13 @@ def run_job_args(current_run_job):
 
     simulated_args = f"{arg_source_paths} {arg_target_path} {arg_output_path} {current_run_job['headless']} {current_run_job['job_args']}"
     simulated_cmd = simulated_args.replace('\\\\', '\\')
-    
+    ui_layouts = 'ui_layouts'
+    setattr(facefusion.globals, ui_layouts, ['QueueItUp'])
+
     # Specify the Python interpreter from the venv
     print(simulated_cmd)
     venv_python = "C:\\AI\\automatic1111\\venv\\Scripts\\python.exe"
+  # process = subprocess.Popen(f"{venv_python} {facefusion_dir}\\run.py {simulated_cmd}", shell=True)
     process = subprocess.Popen(f"{venv_python} {facefusion_dir}\\run2.py {simulated_cmd}", shell=True)
     print (process)
     # Wait for the process to complete and check its return code
