@@ -6,6 +6,7 @@ from modules import script_callbacks
 import facefusion.globals
 from facefusion import logger, face_analyser, content_analyser
 from facefusion.core import apply_args, get_argument_parser, pre_check
+from facefusion.core2 import apply_args as apply_args2
 from facefusion.processors.frame.modules import (
     face_debugger,
     face_enhancer,
