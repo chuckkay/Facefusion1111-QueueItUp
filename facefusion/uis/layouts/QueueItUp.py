@@ -1010,9 +1010,9 @@ def edit_queue():
             argument_frame.pack(side='left', fill='x', padx=5)
 
             custom_font = font.Font(family="Helvetica", size=12, weight="bold")
-            facefusion_button = tk.Button(argument_frame, text=f"UN-Queue It Up", font=bold_font, justify='center')
+            facefusion_button = tk.Button(argument_frame, text=f"UNDER CUNSTRUCTION", font=bold_font, justify='center')
             facefusion_button.pack(side='top', padx=5, fill='x', expand=False)
-            facefusion_button.bind("<Button-1>", lambda event, j=job: reload_job_in_facefusion_edit(j))
+            facefusion_button.bind("<Button-1>", lambda event, j=job: edit_job_arguments_text(j))
 
 
             custom_font = font.Font(family="Helvetica", size=10, weight="bold")
