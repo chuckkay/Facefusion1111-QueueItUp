@@ -114,53 +114,43 @@ def listen() -> None:
     face_analyser.listen()
     common_options.listen()
 
-def extract_defaults_from_cli(defaults):
-    with open(os.path.join(base_dir, f"facefusion/core.py"), "r") as file:
-        cli_source = file.read()
-    pattern = r"add_argument\('--([^']+)'.*?default\s*=\s*(?:config.get_(?:str|int|float)_value\('[^']+',\s*'([^']+)'\)|config.get_(?:str|int|float)_list\('[^']+',\s*'([^']+)'\)|config.get_(?:str|int|float)_value\('[^']+'\)|([^,]+))"
-    matches = re.findall(pattern, cli_source)
-    defaults = {}
-    for match in matches:
-        key, default, default_list, _ = match
-        default = default or default_list
-        if default:
-            if default.lower() == "false":
-                default = False
-            elif default.lower() == "true":
-                default = True
-            elif default.isdigit():
-                default = int(default)
-            elif default.replace(".", "", 1).isdigit():
-                default = float(default)
-            elif default.startswith("[") and default.endswith("]"):
-                default = default.strip("[]").split(", ")
+def get_default_values_from_ini():
+    #only needed for Sd-webui version Reads and parses default values from the ini file.
+    default_values = {}
+    with open(os.path.join(base_dir, "default_values.ini"), "r") as file:
+        for line in file:
+            key, val = line.strip().split(": ", 1)
+            if val == "None":
+                parsed_val = None
             else:
-                default = default.strip("'\"")
-        else:
-            default = None
-        defaults[key.replace('-', '_')] = default
-        
-        
-    return defaults
-
-
-def assemble_queue():
-    global RUN_JOBS_BUTTON, ADD_JOB_BUTTON, jobs_queue_file, jobs
-    # default_values are already initialized, do not call for new default values
-    default_values = extract_defaults_from_cli(defaults)
+                # Parsing logic directly within this function
+                if val.startswith('[') and val.endswith(']'):
+                    parsed_val = val[1:-1].split(', ')
+                elif val.startswith('(') and val.endswith(')'):
+                    parsed_val = tuple(val[1:-1].split(', '))
+                else:
+                    try:
+                        parsed_val = int(val)
+                    except ValueError:
+                        try:
+                            parsed_val = float(val)
+                        except ValueError:
+                            parsed_val = val
+            default_values[key] = parsed_val
     with open(os.path.join(working_dir, f"default_values.txt"), "w") as file:
         for key, val in default_values.items():
             file.write(f"{key}: {val}\n")
-        
+    return default_values
+
+def assemble_queue():
+    global RUN_JOBS_BUTTON, ADD_JOB_BUTTON, jobs_queue_file, jobs, default_values, current_values
+    # default_values are already initialized, do not call for new default except if sd-webui version
+    default_values = get_default_values_from_ini()
+
     current_values = get_values_from_globals('current_values')
 
-
     differences = {}
-    dicts = [current_values, default_values]  # Ensure these are defined or passed to this function appropriately
-
-
     keys_to_skip = ["source_paths", "target_path", "output_path", "ui_layouts", "face_recognizer_model"]
-    # Check if "frame-processors" includes "face-enhancer" or "frame-enhancer"
     if "frame-processors" in current_values:
         frame_processors = current_values["frame-processors"]
         if "face-enhancer" not in frame_processors:
@@ -169,28 +159,20 @@ def assemble_queue():
             keys_to_skip.append("frame-enhancer-model")
         if "face-swapper" not in frame_processors:
             keys_to_skip.append("face_swapper_model")
-
     # Compare current_values against default_values and record only changed current values
     for key, current_value in current_values.items():
         if key in keys_to_skip:
             continue  # Skip these keys
-
         default_value = default_values.get(key)
-        if default_value is None or current_value != default_value:
+        if current_value != default_value:
             if current_value is None:
-                continue  # Skip if the resulting value would be None
-
-            # Format the output based on type
+                continue
             formatted_value = current_value
             if isinstance(current_value, list):
-                # Convert list to space-separated string
                 formatted_value = ' '.join(map(str, current_value))
             elif isinstance(current_value, tuple):
-                # Convert tuple to space-separated string without parentheses
                 formatted_value = ' '.join(map(str, current_value))
-
             differences[key] = formatted_value
-
 
     source_paths = current_values.get("source_paths", [])
     target_path = current_values.get("target_path", "")
@@ -201,16 +183,15 @@ def assemble_queue():
             if JOB_IS_EXECUTING:
                 if debugging:
                     custom_print("Job is executing.")
-                break  # Exit the loop if the job is executing
+                break
             else:
                 if debugging:
                     custom_print("Job is running but not executing. Stuck in loop.\n")
-                time.sleep(1)  # Wait for 1 second to reduce CPU usage, continue checking
+                time.sleep(1)
         else:
             if debugging:
                 custom_print("Job is not running.")
-            break  # Exit the loop if the job is not running
-
+            break
     oldeditjob = None
     found_editing = False
     jobs = load_jobs(jobs_queue_file)
@@ -228,18 +209,16 @@ def assemble_queue():
     cache_target_path = copy_to_media_cache(target_path)
     custom_print(f"{GREEN}Target file{ENDC} copied to Media Cache folder: {GREEN}{os.path.basename(cache_target_path)}{ENDC}\n\n")
 
-
     # Construct the arguments string
     arguments = " ".join(f"--{key.replace('_', '-')} {value}" for key, value in differences.items() if value)
     if debugging:
         with open(os.path.join(working_dir, "arguments.txt"), "w") as file:
             file.write(json.dumps(arguments) + "\n")
     job_args = f"{arguments}"
-
     custom_print(f"{GREEN}Target file{ENDC} copied to Media Cache folder: {GREEN}{os.path.basename(cache_target_path)}{ENDC}\n\n")
-    
+
     if isinstance(cache_source_paths, str):
-        cache_source_paths = [cache_source_paths]  # Convert to list if it's a single string
+        cache_source_paths = [cache_source_paths]
 
     new_job = {
         "job_args": job_args,
@@ -274,7 +253,6 @@ def assemble_queue():
         count_existing_jobs()
         edit_queue.refresh_frame_listbox()
 
-
     count_existing_jobs()
     if JOB_IS_RUNNING:
         custom_print(f"{BLUE}job # {CURRENT_JOB_NUMBER + PENDING_JOBS_COUNT + 1} was added {ENDC}\n\n")
@@ -295,8 +273,12 @@ def run_job_args(current_run_job):
     ui_layouts = 'ui_layouts'
     setattr(facefusion.globals, ui_layouts, ['QueueItUp'])
 
-    # Specify the Python interpreter from the venv
-    result = subprocess.Popen(f"{venv_python} {base_dir}\\run2.py {simulated_cmd}", shell=True)
+    # Run the command
+    #result = subprocess.run(f"python run.py {simulated_cmd}", shell=True)
+
+    result = subprocess.run(f"{venv_python} {base_dir}\\run2.py {simulated_cmd}", shell=True)
+
+    #result = subprocess.run(f"python run2.py {simulated_cmd}", shell=True)
     # Check the return code
     return_code = result.returncode
     if return_code == 0:
@@ -390,7 +372,7 @@ def execute_jobs():
 
 
 def edit_queue():
-    global root, frame, output_text, edit_queue_window, jobs_queue_file, jobs, job
+    global root, frame, output_text, edit_queue_window, default_values, jobs_queue_file, jobs, job
     EDIT_JOB_BUTTON = gradio.Button("Edit Queue")
     jobs = load_jobs(jobs_queue_file)  
     root = tk.Tk()
@@ -583,6 +565,7 @@ def edit_queue():
             update_job_listbox()
 
     def edit_job_arguments_text(job):
+        global default_values
         job_args = job.get('job_args', '')
         preprocessed_defaults = preprocess_execution_providers(default_values)
 
@@ -670,7 +653,6 @@ def edit_queue():
         scrollable_frame.update_idletasks()
         canvas.configure(scrollregion=canvas.bbox("all"))
         edit_arg_window.mainloop()
-        
 
     def Batch_job(job):
         file_types = []
@@ -1012,7 +994,7 @@ def edit_queue():
             custom_font = font.Font(family="Helvetica", size=12, weight="bold")
             facefusion_button = tk.Button(argument_frame, text=f"UNDER CUNSTRUCTION", font=bold_font, justify='center')
             facefusion_button.pack(side='top', padx=5, fill='x', expand=False)
-            facefusion_button.bind("<Button-1>", lambda event, j=job: edit_job_arguments_text(j))
+            facefusion_button.bind("<Button-1>", lambda event, j=job: reload_job_in_facefusion_edit(j))
 
 
             custom_font = font.Font(family="Helvetica", size=10, weight="bold")
@@ -1266,7 +1248,7 @@ def check_if_needed(job, source_or_target):
                 custom_print(f"{BLUE}Did not delete the file: {GREEN}{os.path.basename(normalized_target_path)}{ENDC} as it's needed by another job.\n\n")
 
 def preprocess_execution_providers(data):
-    new_data = data.copy()  # Make a copy of the original data to avoid mutating the input directly
+    new_data = data.copy()
     for key, value in new_data.items():
         if key == "execution_providers":
             new_providers = []
@@ -1308,7 +1290,7 @@ PENDING_JOBS_COUNT = 0
 CURRENT_JOB_NUMBER = 0
 edit_queue_window = 0
 image_references = {}
-defaults = {}
+default_values = {}
     # ANSI Color Codes     
 RED = '\033[91m'     #use this  
 GREEN = '\033[92m'     #use this  
@@ -1326,7 +1308,7 @@ if not os.path.exists(working_dir):
     os.makedirs(working_dir)
 if not os.path.exists(media_cache_dir):
     os.makedirs(media_cache_dir)
-default_values = get_values_from_globals("default_values")
+#default_values = get_values_from_globals("default_values")
 create_and_verify_json(jobs_queue_file)
 check_for_completed_failed_or_aborted_jobs()
 custom_print(f"{GREEN}STATUS CHECK COMPLETED. {BLUE}You are now ready to QUEUE IT UP!{ENDC}")
