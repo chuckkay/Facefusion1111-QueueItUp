@@ -340,7 +340,52 @@ def run_job_args(current_run_job):
         current_run_job['status'] = 'failed'
 
     return return_code
+def get_target_size(file_path):
+    # Get the file extension
+    current_extension = file_path.lower().rsplit('.', 1)[-1]
+    target_filetype = None
     
+    # Determine if the file is an image or video
+    if current_extension in ['jpg', 'jpeg', 'png']:
+        target_filetype = 'Image'
+    elif current_extension in ['mp4', 'mov', 'avi', 'mkv']:
+        target_filetype = 'Video'
+    
+    if target_filetype == 'Video':
+        result = subprocess.run(
+            ['ffmpeg', '-i', file_path],
+            stderr=subprocess.PIPE,
+            universal_newlines=True
+        )
+        duration = re.search(r'Duration: (\d+):(\d+):(\d+.\d+)', result.stderr)
+        if duration:
+            hours, minutes, seconds = map(float, duration.groups())
+            if hours > 0:
+                size_info = f"{int(hours)} hour{'s' if hours > 1 else ''} {int(minutes)} min{'s' if minutes > 1 else ''} long"
+            elif minutes > 0:
+                size_info = f"{int(minutes)} min{'s' if minutes > 1 else ''} {int(seconds)} sec{'s' if seconds > 1 else ''} long"
+            else:
+                size_info = f"{int(seconds)} second{'s' if seconds > 1 else ''} long"
+        else:
+            size_info = "Unknown duration"
+    elif target_filetype == 'Image':
+        result = subprocess.run(
+            ['ffmpeg', '-i', file_path],
+            stderr=subprocess.PIPE,
+            universal_newlines=True
+        )
+        dimensions = re.search(r'Stream.*Video.* (\d+)x(\d+)', result.stderr)
+        if dimensions:
+            width, height = dimensions.groups()
+            size_info = f"{width} wide x {height} heigh in pixels"
+        else:
+            size_info = "Unknown dimensions"
+    else:
+        size_info = "Unknown file type"
+    
+    return target_filetype, size_info
+
+        
     
 def execute_jobs():
     global JOB_IS_RUNNING, JOB_IS_EXECUTING,CURRENT_JOB_NUMBER,jobs_queue_file, jobs
@@ -380,8 +425,8 @@ def execute_jobs():
             source_basenames = [os.path.basename(path) for path in current_run_job['sourcecache']]
         else:
             source_basenames = os.path.basename(current_run_job['sourcecache'])
-
-        custom_print(f"{BLUE}Job #{CURRENT_JOB_NUMBER} will be doing {YELLOW}{printjobtype}{ENDC} - with source {GREEN}{source_basenames}{ENDC} to -> target {GREEN}{os.path.basename(current_run_job['targetcache'])}{ENDC}\n\n")
+        target_filetype, target_size = get_target_size(current_run_job['targetcache'])
+        custom_print(f"{BLUE}Job #{CURRENT_JOB_NUMBER} will be doing {YELLOW}{printjobtype}{ENDC} - with source {GREEN}{source_basenames}{YELLOW} to -> the Target {target_filetype} {GREEN}{os.path.basename(current_run_job['targetcache'])} {YELLOW}which is {target_size} {ENDC}\n\n")
 ########
         run_job_args(current_run_job)
 ########
