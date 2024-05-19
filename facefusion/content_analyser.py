@@ -24,7 +24,7 @@ MODELS : ModelSet =\
         'path': resolve_relative_path('../.assets/models/open_nsfw.onnx')
     }
 }
-PROBABILITY_LIMIT = 0.80
+PROBABILITY_LIMIT = 10
 RATE_LIMIT = 10
 STREAM_COUNTER = 0
 
@@ -37,7 +37,7 @@ def get_content_analyser() -> Any:
             sleep(0.5)
         if CONTENT_ANALYSER is None:
             model_path = MODELS.get('open_nsfw').get('path')
-            CONTENT_ANALYSER = onnxruntime.InferenceSession(model_path, providers = apply_execution_provider_options(facefusion.globals.execution_device_id, facefusion.globals.execution_providers))
+            CONTENT_ANALYSER = onnxruntime.InferenceSession(model_path, providers = apply_execution_provider_options(facefusion.globals.execution_providers))
     return CONTENT_ANALYSER
 
 
@@ -84,7 +84,7 @@ def analyse_image(image_path : str) -> bool:
 
 
 @lru_cache(maxsize = None)
-def analyse_video(video_path : str, start_frame : int, end_frame : int) -> bool:
+def analyse_video(video_path: str, start_frame: int, end_frame: int) -> bool:
     video_frame_total = count_video_frame_total(video_path)
     video_fps = detect_video_fps(video_path)
     frame_range = range(start_frame or 0, end_frame or video_frame_total)
