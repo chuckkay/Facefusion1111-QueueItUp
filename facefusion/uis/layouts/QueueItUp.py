@@ -1106,37 +1106,7 @@ def get_target_info(file_path):
 # Example usage
 # Uncomment the line below to test with a specific file
 # print(get_target_size('path_to_your_video_or_image_file'))
-
-    
-# def get_default_values_from_ini():
-    # # Only needed for Sd-webui version. Reads and parses default values from the ini file.
-    # default_values = {}
-    # sd_values = get_values_from_globals("sd_values")
-    # with open(os.path.join(base_dir, "default_values.ini"), "r") as file:
-        # for line in file:
-            # key, val = line.strip().split(": ", 1)
-            # if val == "None":
-                # parsed_val = None
-            # else:
-                # # Parsing logic directly within this function
-                # if val.startswith('[') and val.endswith(']'):
-                    # parsed_val = [v.strip('"').strip("'") for v in val[1:-1].split(', ')]
-                # elif val.startswith('(') and val.endswith(')'):
-                    # parsed_val = tuple(int(v.strip('"').strip("'")) if v.strip('"').strip("'").isdigit() else v.strip('"').strip("'") for v in val[1:-1].split(', '))
-                # else:
-                    # try:
-                        # parsed_val = int(val)
-                    # except ValueError:
-                        # try:
-                            # parsed_val = float(val)
-                        # except ValueError:
-                            # parsed_val = val.strip('"').strip("'")
-            # default_values[key] = parsed_val
-    # with open(os.path.join(working_dir, "default_values.txt"), "w") as file:
-        # for key, val in default_values.items():
-            # file.write(f"{key}: {val}\n")
-    # return default_values
-    
+   
     
 def get_values_from_globals(state_name):
     state_dict = {}
@@ -1449,7 +1419,9 @@ if automatic1111:
     import facefusion.core2 as core2
     venv_python = os.path.normpath(os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'venv', 'scripts', 'python.exe'))
     debug_print("Venv Python Path:", venv_python)
-if not automatic1111: default_values = get_values_from_globals("default_values")
+#if not automatic1111: default_values = get_values_from_globals("default_values")
+default_values = get_values_from_globals("default_values")
+
     # ANSI Color Codes     
 RED = '\033[91m'     #use this  
 GREEN = '\033[92m'     #use this  
