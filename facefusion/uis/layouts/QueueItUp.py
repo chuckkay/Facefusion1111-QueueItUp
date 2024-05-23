@@ -17,12 +17,14 @@ from io import BytesIO
 import facefusion.globals
 from facefusion.uis.components import about, frame_processors, frame_processors_options, execution, execution_thread_count, execution_queue_count, memory, temp_frame, output_options, common_options, source, target, output, preview, trim_frame, face_analyser, face_selector, face_masker
 
+
 def pre_check() -> bool:
     return True
 
 
 def pre_render() -> bool:
     return True
+
 
 def render() -> gr.Blocks:
     global ADD_JOB_BUTTON, RUN_JOBS_BUTTON, STATUS_WINDOW, SETTINGS_BUTTON
@@ -76,15 +78,13 @@ def render() -> gr.Blocks:
                 with gr.Blocks():
                     common_options.render()
 
-    
-    
     return layout
     
 
 def listen() -> None:
     global EDIT_JOB_BUTTON, STATUS_WINDOW
     ADD_JOB_BUTTON.click(assemble_queue, outputs=STATUS_WINDOW)
-    RUN_JOBS_BUTTON.click(execute_jobs, outputs=STATUS_WINDOW)
+    RUN_JOBS_BUTTON.click(execute_jobs)
     EDIT_JOB_BUTTON.click(edit_queue, outputs=STATUS_WINDOW)
     SETTINGS_BUTTON.click(queueitup_settings)
     frame_processors.listen()
@@ -105,6 +105,7 @@ def listen() -> None:
     face_analyser.listen()
     common_options.listen()
 
+
 def assemble_queue():
     global RUN_JOBS_BUTTON, ADD_JOB_BUTTON, jobs_queue_file, jobs, STATUS_WINDOW, default_values, current_values
     missing_paths = []
@@ -120,7 +121,6 @@ def assemble_queue():
         whats_missing = ", ".join(missing_paths)
         custom_print(f"{RED}Whoops!!!, you are missing {whats_missing}. Make sure you add {whats_missing} before clicking add job{ENDC}\n\n")
         return STATUS_WINDOW.value
-
 
     current_values = get_values_from_globals('current_values')
 
@@ -306,7 +306,6 @@ def execute_jobs():
             
             save_jobs(jobs_queue_file, jobs)
         else:#no more pending jobs
-            message = f"A total of {CURRENT_JOB_NUMBER} Jobs have completed processing,...... the Queue is now empty, Feel Free to QueueItUp some more.."
             custom_print(f"{BLUE}a total of {CURRENT_JOB_NUMBER} Jobs have completed processing,{ENDC}...... {GREEN}the Queue is now empty, {BLUE}Feel Free to QueueItUp some more..{ENDC}")
             current_run_job = None
             first_pending_job = None
@@ -314,11 +313,10 @@ def execute_jobs():
     JOB_IS_RUNNING = 0
     save_jobs(jobs_queue_file, jobs)
     check_for_unneeded_media_cache()
-    STATUS_WINDOW.value = last_justtextmsg
-    return STATUS_WINDOW.value
+
 
 def edit_queue():
-    global root, frame, output_text, edit_queue_window, STATUS_WINDOW, default_values, jobs_queue_file, jobs, job, image_references, thumbnail_dir, working_dir, PENDING_JOBS_COUNT, pending_jobs_var, debugging, keep_completed_jobs
+    global root, frame, edit_queue_window, STATUS_WINDOW, jobs_queue_file, jobs, job, image_references, thumbnail_dir, working_dir, PENDING_JOBS_COUNT
     root = tk.Tk()
     jobs = load_jobs(jobs_queue_file)
     PENDING_JOBS_COUNT = count_existing_jobs()
@@ -354,6 +352,9 @@ def edit_queue():
     refresh_button = tk.Button(root, text="Refresh View", command=lambda: refresh_buttonclick(), font=custom_font)
     refresh_button.pack(pady=5)
 
+    # run_jobs_button = tk.Button(root, text="Run Pending Jobs", command=lambda: run_jobs_click(), font=custom_font)
+    # run_jobs_button.pack(pady=5)
+
     pending_jobs_button = tk.Button(root, textvariable=pending_jobs_var, command=lambda: delete_pending_jobs(), font=custom_font)
     pending_jobs_button.pack(pady=5)
 
@@ -369,7 +370,10 @@ def edit_queue():
     completed_jobs_button = tk.Button(root, text="Delete Completed", command=lambda: delete_completed_jobs(), font=custom_font)
     completed_jobs_button.pack(pady=5)
     
-        
+    # def run_jobs_click():
+        # save_jobs(jobs_queue_file, jobs)
+        # execute_jobs()
+    
     def refresh_buttonclick():
         count_existing_jobs()
         update_job_listbox()
@@ -410,7 +414,7 @@ def edit_queue():
         jobs = [job for job in jobs if job['status'] != 'missing']
         save_jobs(jobs_queue_file, jobs)
         refresh_frame_listbox()
-
+       
     def archive_job(job):
         job['status'] = 'archived'
         save_jobs(jobs_queue_file, jobs) 
@@ -472,13 +476,20 @@ def edit_queue():
 
     def delete_job(job):
         job['status'] = ('deleting')
-        source_or_target='both'
         check_if_needed(job, 'both')
         jobs.remove(job)
         save_jobs(jobs_queue_file, jobs)
         update_job_listbox()  
         refresh_frame_listbox()
-
+        
+    def clone_job(job):
+        clonedjob = job  
+        jobs = load_jobs(jobs_queue_file)        
+        jobs.append(clonedjob)
+        save_jobs(jobs_queue_file, jobs)
+        update_job_listbox()  
+        refresh_frame_listbox()
+        
     def move_job_up(index):
         if index > 0:
             jobs.insert(index - 1, jobs.pop(index))
@@ -506,7 +517,6 @@ def edit_queue():
     def edit_job_arguments_text(job):
         global default_values
         job_args = job.get('job_args', '')
-        preprocessed_defaults = preprocess_execution_providers(default_values)
         edit_arg_window = tk.Toplevel()
         edit_arg_window.title("Edit Job Arguments")
         edit_arg_window.geometry("1050x500")
@@ -584,7 +594,7 @@ def edit_queue():
         scrollable_frame.update_idletasks()
         canvas.configure(scrollregion=canvas.bbox("all"))
         edit_arg_window.mainloop()
-
+        
     def batch_job(job):
         target_filetype = None
         source_or_target = None
@@ -879,6 +889,9 @@ def edit_queue():
                     archive_button = tk.Button(action_frame, text="Archive", command=lambda j=job: archive_job(j))
                     archive_button.pack(side='top', padx=2)
                     
+                    clone_job_button = tk.Button(action_frame, text="Clone Job", command=lambda j=job: clone_job(j))
+                    clone_job_button.pack(side='top', padx=2)
+                    
                     batch_button = tk.Button(action_frame, text="BatchItUp", command=lambda j=job: batch_job(j))
                     batch_button.pack(side='top', padx=2)
                     
@@ -901,7 +914,7 @@ def edit_queue():
                 frame.update_idletasks()
                 canvas.config(scrollregion=canvas.bbox("all"))
         except tk.TclError as e:
-            pass
+            print(e)
             
     edit_queue.refresh_frame_listbox = refresh_frame_listbox
     edit_queue_window += 1
@@ -914,8 +927,8 @@ def edit_queue():
     print_existing_jobs()
     return STATUS_WINDOW.value
 
-### testing internal method
 
+### testing internal method
 def test_job_args(job):
 
     # Check and consolidate source paths
@@ -1107,7 +1120,7 @@ def get_target_info(file_path):
 def get_values_from_globals(state_name):
     state_dict = {}
     
-    from facefusion.processors.frame import globals as frame_processors_globals###, choices as frame_processors_choices
+    from facefusion.processors.frame import globals as frame_processors_globals, choices as frame_processors_choices
 
     modules = [facefusion.globals, frame_processors_globals]  
 
@@ -1129,18 +1142,14 @@ def get_values_from_globals(state_name):
         debug_print(f"{state_name}.txt created")
     return state_dict
 
+
 def debug_print(*msgs):
     if debugging:
         custom_print(*msgs)
 
+
 def custom_print(*msgs):
-    global last_justtextmsg
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    ENDC = '\033[0m'
-    
+    global last_justtextmsg   
     message = " ".join(str(msg) for msg in msgs)
     justtextmsg = re.sub(r'\033\[\d+m', '', message)
     last_justtextmsg = justtextmsg
@@ -1356,6 +1365,7 @@ def check_if_needed(job, source_or_target):
         count_existing_jobs
         print_existing_jobs
 
+
 def preprocess_execution_providers(data):
     new_data = data.copy()
     for key, value in new_data.items():
@@ -1372,6 +1382,8 @@ def preprocess_execution_providers(data):
             new_data[key] = new_providers  # Replace the old list with the new one
     return new_data
 ################ 
+
+
 def load_settings():
     config = configparser.ConfigParser()
 
@@ -1390,6 +1402,7 @@ def load_settings():
     }
     return settings
 
+
 def save_settings(settings):
     config = configparser.ConfigParser()
     config['Settings'] = {
@@ -1399,11 +1412,13 @@ def save_settings(settings):
     with open(settings_path, 'w') as configfile:
         config.write(configfile)
 
+
 def initialize_settings():
     settings = load_settings()
     global debugging, keep_completed_jobs
     debugging = settings['debugging']
     keep_completed_jobs = settings['keep_completed_jobs']
+
 
 def queueitup_settings():
     settings = load_settings()
@@ -1452,6 +1467,7 @@ def queueitup_settings():
 
     setini.mainloop()
 
+
 ################
 #startup_init_checks_and_cleanup     
 #Globals and toggles
@@ -1493,7 +1509,7 @@ default_values = {}
 automatic1111 = os.path.isfile(os.path.join(base_dir, "flavor.txt")) and "automatic1111" in open(os.path.join(base_dir, "flavor.txt")).readline().strip()
 if automatic1111:
     print("automatic1111")
-    from facefusion import core2
+    # from facefusion import core2
     import facefusion.core2 as core2
     venv_python = os.path.normpath(os.path.join(os.path.dirname(os.path.dirname(base_dir)), 'venv', 'scripts', 'python.exe'))
     debug_print("Venv Python Path:", venv_python)
@@ -1519,6 +1535,7 @@ create_and_verify_json(jobs_queue_file)
 check_for_completed_failed_or_aborted_jobs()
 debug_print(f"{GREEN}STATUS CHECK COMPLETED. {BLUE}You are now ready to QUEUE IT UP!{ENDC}")
 print_existing_jobs()
+
 
 def run(ui : gr.Blocks) -> None:
     concurrency_count = min(8, multiprocessing.cpu_count())
