@@ -16,6 +16,15 @@ from tkinter import filedialog, font, Toplevel, messagebox, PhotoImage, Scrollba
 from io import BytesIO
 import facefusion.globals
 from facefusion.uis.components import about, frame_processors, frame_processors_options, execution, execution_thread_count, execution_queue_count, memory, temp_frame, output_options, common_options, source, target, output, preview, trim_frame, face_analyser, face_selector, face_masker
+# def install_package(package):
+    # subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# try:
+    # import moviepy
+# except ImportError:
+    # print("moviepy is not installed. Installing now...")
+    # install_package("moviepy")
+    # import moviepy
 
 
 def pre_check() -> bool:
@@ -316,7 +325,7 @@ def execute_jobs():
 
 
 def edit_queue():
-    global root, frame, edit_queue_window, STATUS_WINDOW, jobs_queue_file, jobs, job, image_references, thumbnail_dir, working_dir, PENDING_JOBS_COUNT
+    global root, frame, edit_queue_window, STATUS_WINDOW, jobs_queue_file, jobs, job, image_references, thumbnail_dir, working_dir, pending_jobs_var,PENDING_JOBS_COUNT
     root = tk.Tk()
     jobs = load_jobs(jobs_queue_file)
     PENDING_JOBS_COUNT = count_existing_jobs()
@@ -753,16 +762,39 @@ def edit_queue():
                     '-vframes', '1',
                     '-y', thumbnail_path
                 ]
-            else:
+            elif file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff')):
+                # Original command for image files
                 cmd = [
                     'ffmpeg', '-i', file_path,
-                    '-vf', f'scale={thumb_size}:{thumb_size}',
+                    '-vf', f'scale={thumb_size}:{thumb_size},pad={thumb_size}:{thumb_size}:(ow-iw)/2:(oh-ih)/2:black',
+                    '-vframes', '1',
+                    '-y', thumbnail_path
+                ]
+            else:
+                # Command for video files
+                probe_cmd = [
+                    'ffmpeg', '-i', file_path,
+                    '-show_entries', 'format=duration',
+                    '-v', 'quiet', '-of', 'csv=p=0'
+                ]
+
+                result = subprocess.run(probe_cmd, capture_output=True, text=True)
+                try:
+                    duration = float(result.stdout.strip())
+                except ValueError:
+                    # If duration could not be parsed, default to 10 seconds
+                    duration = 100  # Assume a 100-second video if duration is not available
+                seek_time = duration * 0.10
+
+                # Generate the thumbnail
+                cmd = [
+                    'ffmpeg', '-ss', str(seek_time), '-i', file_path,
+                    '-vf', f'thumbnail,scale=\'if(gt(a,1),{thumb_size},-1)\':\'if(gt(a,1),-1,{thumb_size})\',pad={thumb_size}:{thumb_size}:(ow-iw)/2:(oh-ih)/2:black',
                     '-vframes', '1',
                     '-y', thumbnail_path
                 ]
             subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             thumbnail_files.append(thumbnail_path)
-
         list_file_path = os.path.join(thumbnail_dir, f'{job_id}_input_list.txt')
         with open(list_file_path, 'w') as file:
             for thumb in thumbnail_files:
@@ -1039,7 +1071,8 @@ def run_job_args(current_run_job):
         current_run_job['status'] = 'completed'
     else:
         current_run_job['status'] = 'failed'
-
+    # print(facefusion.globals.output_path)  
+    # print(facefusion.globals.normed_output_path)  
     return current_run_job
     ###return return_code
 
@@ -1149,7 +1182,7 @@ def debug_print(*msgs):
 
 
 def custom_print(*msgs):
-    global last_justtextmsg   
+    global last_justtextmsg
     message = " ".join(str(msg) for msg in msgs)
     justtextmsg = re.sub(r'\033\[\d+m', '', message)
     last_justtextmsg = justtextmsg
@@ -1381,7 +1414,7 @@ def preprocess_execution_providers(data):
                 # Assuming you don't want to keep original values that don't match, skip the else clause
             new_data[key] = new_providers  # Replace the old list with the new one
     return new_data
-################ 
+##
 
 
 def load_settings():
@@ -1468,7 +1501,7 @@ def queueitup_settings():
     setini.mainloop()
 
 
-################
+##
 #startup_init_checks_and_cleanup     
 #Globals and toggles
 script_root = os.path.dirname(os.path.abspath(__file__))
