@@ -110,12 +110,13 @@ def listen() -> None:
 def run(ui : gr.Blocks) -> None:
     if automatic1111:
         concurrency_count = min(8, multiprocessing.cpu_count())
-        ui.queue(concurrency_count = concurrency_count).launch(show_api = False, quiet = False, inbrowser = True)       
+        ui.queue(concurrency_count = concurrency_count).launch(show_api = False, quiet = False, inbrowser = True)
     else:
-        gradio_version = pkg_resources.get_distribution("gradio").version
+
+
         if gradio_version.startswith('3.'):
             concurrency_count = min(8, multiprocessing.cpu_count())
-            ui.launch(show_api = False, inbrowser = facefusion.globals.open_browser)
+            ui.queue(concurrency_count = concurrency_count).launch(show_api = False, quiet = True, inbrowser = facefusion.globals.open_browser)
         else:
             ui.launch(show_api = False, inbrowser = facefusion.globals.open_browser)
             #ui.queue(concurrency_count = concurrency_count).launch(show_api = False, quiet = False, inbrowser = facefusion.globals.open_browser, favicon_path="test.ico")
@@ -722,7 +723,7 @@ def remove_old_grid(job_id, source_or_target):
     grid_thumb_path = os.path.join(thumbnail_dir, image_ref_key)
     if os.path.exists(grid_thumb_path):
         os.remove(grid_thumb_path)
-        debug_print(f"Deleted Thumbnail: {GREEN}{os.path.basename(grid_thumb_path)}{ENDC}\n\n")  
+        debug_print(f"Deleted temporary Thumbnail: {GREEN}{os.path.basename(grid_thumb_path)}{ENDC}\n\n")  
     
 def archive_job(job):
     if job['status'] == 'archived':
@@ -1471,7 +1472,7 @@ def check_for_unneeded_media_cache():
     for cache_file in cache_files:
         if cache_file not in needed_files:
             os.remove(os.path.join(media_cache_dir, cache_file))
-            debug_print(f"{GREEN}Deleted unneeded file: {cache_file}{ENDC}")
+            debug_print(f"{GREEN}Deleted unneeded temp mediacache file: {cache_file}{ENDC}")
 
 
 def check_if_needed(job, source_or_target):
@@ -1688,6 +1689,8 @@ GREEN = '\033[92m'     #use this
 YELLOW = '\033[93m'     #use this  
 BLUE = '\033[94m'     #use this  
 ENDC = '\033[0m'       #use this    Resets color to default
+gradio_version = pkg_resources.get_distribution("gradio").version
+debug_print(f"gradio version: {gradio_version}")
 debug_print("FaceFusion Base Directory:", base_dir)
 debug_print("QueueItUp Working Directory:", working_dir)
 debug_print("QueueItUp Media Cache Directory:", media_cache_dir)
