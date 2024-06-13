@@ -1,2 +1,4 @@
 filetype==1.2.0
 onnx==1.16.0
+albumentations==1.4.3
+yt_dlp==2023.10.7
