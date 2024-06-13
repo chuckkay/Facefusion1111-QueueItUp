@@ -6,7 +6,6 @@ import uuid
 import time
 import math
 import json
-import multiprocessing
 import glob
 import shutil
 import tkinter as tk
@@ -178,12 +177,10 @@ def listen() -> None:
 def run(ui : gr.Blocks) -> None:
     if automatic1111:
         import multiprocessing
+
         concurrency_count = min(8, multiprocessing.cpu_count())
-         
-                                                                                
-        ui.queue(concurrency_count = concurrency_count).launch(show_api = False, quiet = True)
+        ui.queue(concurrency_count = concurrency_count).launch(show_api = False, quiet = True)           
             
-        
     else:
         ui.launch(show_api = False, inbrowser = facefusion.globals.open_browser)
             #ui.queue(concurrency_count = concurrency_count).launch(show_api = False, quiet = False, inbrowser = facefusion.globals.open_browser, favicon_path="test.ico")
