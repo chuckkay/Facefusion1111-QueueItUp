@@ -25,7 +25,7 @@ except ImportError:
 
 import pkg_resources
 facefusion_version = facefusion.metadata.get('version')
-queueitup_version = '2.6.9.1'
+queueitup_version = '2.7 RC2 Next and 2.6.1 compatable'
 automatic1111 = "AUTOMATIC1111" in facefusion_version
 
 def is_version_valid(version_str):
@@ -167,24 +167,24 @@ def assemble_queue():
 	differences = {}
 	keys_to_skip = ["source_paths", "target_path", "output_path", "output_dir", "output_hash", "ui_layouts", "face_recognizer_model", "headless"]
 	### is this still needed?
-	if "frame_processors" in current_values:
-		frame_processors = current_values["frame_processors"]
-		if "face_enhancer" not in frame_processors:
-			keys_to_skip.append("face_enhancer_model")
-		if "frame_enhancer" not in frame_processors:
-			keys_to_skip.append("frame_enhancer_blend")
-		if "face_swapper" not in frame_processors:
-			keys_to_skip.append("face_swapper_model")
-		if "face_debugger" not in frame_processors:
-			keys_to_skip.append("face_debugger_items")
-		if "frame_colorizer" not in frame_processors:
-			keys_to_skip.append("frame_colorizer_model")
-		if "frame_colorizer" not in frame_processors:
-			keys_to_skip.append("frame_colorizer_size")
-		if "frame_colorizer" not in frame_processors:
-			keys_to_skip.append("frame_colorizer_blend")
-		if "lip_syncer" not in frame_processors:
-			keys_to_skip.append("lip_syncer_model")
+	# if "frame_processors" in current_values:
+		# frame_processors = current_values["frame_processors"]
+		# if "face_enhancer" not in frame_processors:
+			# keys_to_skip.append("face_enhancer_model")
+		# if "frame_enhancer" not in frame_processors:
+			# keys_to_skip.append("frame_enhancer_blend")
+		# if "face_swapper" not in frame_processors:
+			# keys_to_skip.append("face_swapper_model")
+		# if "face_debugger" not in frame_processors:
+			# keys_to_skip.append("face_debugger_items")
+		# if "frame_colorizer" not in frame_processors:
+			# keys_to_skip.append("frame_colorizer_model")
+		# if "frame_colorizer" not in frame_processors:
+			# keys_to_skip.append("frame_colorizer_size")
+		# if "frame_colorizer" not in frame_processors:
+			# keys_to_skip.append("frame_colorizer_blend")
+		# if "lip_syncer" not in frame_processors:
+			# keys_to_skip.append("lip_syncer_model")
 			
 	# Compare current_values against default_values and record only changed current values
 	for key, current_value in current_values.items():
@@ -212,11 +212,12 @@ def assemble_queue():
 	output_extension = target_extension
 
 	if source_paths:
-		outputname = source_name + '-' + target_name + '-' + output_hash
+		outputname = source_name + '-' + target_name
 	else:
-		outputname = target_name + '-' + output_hash
-	full_output_path =	os.path.join(output_path, outputname + output_extension)
-
+		outputname = target_name
+	queueitup_job_id = outputname + '-' + output_hash
+	full_output_path =	os.path.join(output_path, queueitup_job_id + output_extension)
+	
 	while True:
 		if JOB_IS_RUNNING:
 			if JOB_IS_EXECUTING:
@@ -267,10 +268,12 @@ def assemble_queue():
 		"source_name": (source_name),
 		"targetcache": (cache_target_path),
 		"target_name": (target_name),
+		"outputname": (outputname),
 		"output_extension": (output_extension),
 		"full_output_path": (full_output_path),
 		"output_path": (output_path),
-		"id": (output_hash)
+		"hash": (output_hash),
+		"id": (queueitup_job_id)
 	}
 
 	if debugging:
@@ -340,11 +343,11 @@ def execute_jobs():
 
 		if not os.path.exists(current_run_job['output_path']):
 			os.makedirs(current_run_job['output_path'])
+		source_basenames = ""
 		if isinstance(current_run_job['sourcecache'], list):
 			source_basenames = f"Source Files {', '.join(os.path.basename(path) for path in current_run_job['sourcecache'])}"
-		else:
+		elif current_run_job['sourcecache']:
 			source_basenames = f"Source File {os.path.basename(current_run_job['sourcecache'])}"
-
 		target_filetype, orig_video_length, output_video_length, output_dimensions, orig_dimensions = get_target_info(current_run_job['targetcache'], current_run_job)
 		if target_filetype == 'Video':
 			custom_print(f"{BLUE}Job #{CURRENT_JOB_NUMBER} will be doing {YELLOW}{printjobtype}{ENDC} - with {GREEN}{source_basenames}{YELLOW} to -> the Target {orig_video_length} {orig_dimensions} {target_filetype} {GREEN}{os.path.basename(current_run_job['targetcache'])}{ENDC} , which will be saved as a {YELLOW}{output_video_length} {output_dimensions} sized {target_filetype}{ENDC} in the folder {GREEN}{current_run_job['output_path']}{ENDC}\n\n")
@@ -355,7 +358,6 @@ def execute_jobs():
 		RUN_job_args(current_run_job)
 ##
 		if current_run_job['status'] == 'failed':
-			source_basenames = [os.path.basename(path) for path in current_run_job['sourcecache']] if isinstance(current_run_job['sourcecache'], list) else [os.path.basename(current_run_job['sourcecache'])]
 			custom_print(f"{BLUE}Job # {CURRENT_JOB_NUMBER} {RED} failed. Please check the validity of {source_basenames} and {RED}{os.path.basename(current_run_job['targetcache'])}.{BLUE}{PENDING_JOBS_COUNT} jobs remaining, pausing 1 second before starting next job{ENDC}\n")
 		else:
 			custom_print(f"{BLUE}Job # {CURRENT_JOB_NUMBER} {GREEN} completed successfully {BLUE}{PENDING_JOBS_COUNT} jobs remaining, pausing 1 second before starting next job{ENDC}\n")
@@ -659,23 +661,44 @@ def batch_job(job):
 
 	def on_use_target():
 		nonlocal source_or_target
-		source_or_target = 'source'
-		if any(ext in src.lower() for ext in ['.mp3', '.wav', '.aac'] for src in job['sourcecache']):
-			messagebox.showinfo("BatchItUp Error", "Sorry, BatchItUp cannot clone lipsync jobs yet.")
-			dialog.destroy()
-			return
-
-		if len(job['sourcecache']) > 1:
-			source_filenames = [os.path.basename(src) for src in job['sourcecache']]
-			proceed = messagebox.askyesno(
-				"BatchItUp Multiple Faces",
-				f"Your current source contains multiple faces ({', '.join(source_filenames)}). BatchItUp cannot create multiple target {target_filetype} jobs while still maintaining multiple source faces. "
-				f"If you click 'Yes' to proceed, you will get 1 target {target_filetype} for each source face you select in the next file dialog, but you can use the edit queue window "
-				f"to add more source faces to each job created after BatchItUp has created them. Do you want to proceed?"
-			)
-			if not proceed:
+		if job['sourcecache']:
+			source_or_target = 'source'
+			if any(ext in src.lower() for ext in ['.mp3', '.wav', '.aac'] for src in job['sourcecache']):
+				messagebox.showinfo("BatchItUp Error", "Sorry, BatchItUp cannot clone lipsync jobs yet.")
 				dialog.destroy()
 				return
+			if len(job['sourcecache']) > 1:
+				source_filenames = [os.path.basename(src) for src in job['sourcecache']]
+				proceed = messagebox.askyesno(
+					"BatchItUp Multiple Faces",
+					f"Your current source contains multiple faces ({', '.join(source_filenames)}). BatchItUp cannot create multiple target {target_filetype} jobs while still maintaining multiple source faces. "
+					f"If you click 'Yes' to proceed, you will get 1 target {target_filetype} for each source face you select in the next file dialog, but you can use the edit queue window "
+					f"to add more source faces to each job created after BatchItUp has created them. Do you want to proceed?"
+				)
+				if not proceed:
+					dialog.destroy()
+					return
+		else:
+			source_or_target == 'target'
+			file_types = [('Image files', '*.jpg *.jpeg *.webp *.png')] if target_filetype == 'Image' else [('Video files', '*.mp4 *.avi *.webm *.mov *.mkv')]
+			selected_paths = filedialog.askopenfilenames(
+				title="Select Multiple sources for BatchItUp to make multiple cloned jobs using each File",
+				filetypes=file_types
+			)
+			if selected_paths:
+				jobs = load_jobs(jobs_queue_file)
+				original_index = jobs.index(job)  # Find the index of the original job		  
+				for path in selected_paths:
+					add_new_job = job.copy()  # Copy the existing job to preserve other attributes
+					path = copy_to_media_cache(path)
+					add_new_job['targetcache'] = path
+					update_paths(add_new_job, path, 'target')
+					debug_print(f"{YELLOW} target - {GREEN}{add_new_job['targetcache']}{YELLOW} copied to temp media cache dir{ENDC}")
+					original_index += 1	 # Increment the index for each new job
+					jobs.insert(original_index, add_new_job)  # Insert the new job right after the original job
+				save_jobs(jobs_queue_file, jobs)
+				refresh_frame_listbox()
+			
 		dialog.destroy()
 		open_file_dialog()
 
@@ -697,7 +720,6 @@ def batch_job(job):
 			original_index = jobs.index(job)  # Find the index of the original job		  
 			for path in selected_paths:
 				add_new_job = job.copy()  # Copy the existing job to preserve other attributes
-				# add_new_job['id'] = str(uuid.uuid4())[:8]
 				path = copy_to_media_cache(path)
 				add_new_job[source_or_target + 'cache'] = path
 				update_paths(add_new_job, path, source_or_target)
@@ -708,27 +730,28 @@ def batch_job(job):
 			refresh_frame_listbox()
 	dialog = tk.Toplevel()
 	dialog.withdraw()
-
-	source_filenames = [os.path.basename(src) for src in job['sourcecache']]
-	message = (
-		f"Welcome to the BatchItUp feature. Here you can add multiple batch jobs with just a few clicks.\n\n"
-		f"Click the 'Use Source' button to select as many target {target_filetype}s as you like and BatchItUp will create a job for each {target_filetype} "
-		f"using {', '.join(source_filenames)} as the source image(s), OR you can Click 'Use Target' to select as many Source Images as you like and BatchItUp will "
-		f"create a job for each source image using {os.path.basename(job['targetcache'])} as the target {target_filetype}."
-	)
+	if job['sourcecache']:
+		source_filenames = [os.path.basename(src) for src in job['sourcecache']]
+		message = (
+			f"Welcome to the BatchItUp feature. Here you can add multiple batch jobs with just a few clicks.\n\n"
+			f"Click the 'Use Source' button to select as many target {target_filetype}s as you like and BatchItUp will create a job for each {target_filetype} "
+			f"using {', '.join(source_filenames)} as the source image(s), OR you can Click 'Use Target' to select as many Source Images as you like and BatchItUp will "
+			f"create a job for each source image using {os.path.basename(job['targetcache'])} as the target {target_filetype}."
+		)
 
 	dialog.deiconify()
 	dialog.geometry("500x300")
 	dialog.title("BatchItUp")
-
-	label = tk.Label(dialog, text=message, wraplength=450, justify="left")
-	label.pack(pady=20)
+	
+	if job['sourcecache']:
+		label = tk.Label(dialog, text=message, wraplength=450, justify="left")
+		label.pack(pady=20)
 
 	button_frame = tk.Frame(dialog)
 	button_frame.pack(pady=10)
-
-	use_source_button = tk.Button(button_frame, text="Use Source", command=on_use_source)
-	use_source_button.pack(side="left", padx=10)
+	if job['sourcecache']:
+		use_source_button = tk.Button(button_frame, text="Use Source", command=on_use_source)
+		use_source_button.pack(side="left", padx=10)
 
 	use_target_button = tk.Button(button_frame, text="Use Target", command=on_use_target)
 	use_target_button.pack(side="left", padx=10)
@@ -749,8 +772,9 @@ def update_job_listbox():
 			for widget in frame.winfo_children():
 				widget.destroy()
 			for index, job in enumerate(jobs):
-				source_cache_path = job['sourcecache'] if isinstance(job['sourcecache'], list) else [job['sourcecache']]
-				source_mediacache_exists = all(os.path.exists(os.path.normpath(source)) for source in source_cache_path)
+				if job['sourcecache']:
+					source_cache_path = job['sourcecache'] if isinstance(job['sourcecache'], list) else [job['sourcecache']]
+					source_mediacache_exists = all(os.path.exists(os.path.normpath(source)) for source in source_cache_path)
 				target_cache_path = job['targetcache'] if isinstance(job['targetcache'], str) else job['targetcache'][0]
 				target_mediacache_exists = os.path.exists(os.path.normpath(target_cache_path))
 				bg_color = 'SystemButtonFace'
@@ -766,7 +790,7 @@ def update_job_listbox():
 					bg_color = 'SystemButtonFace'
 				if not job['status'] == 'completed':
 					job_id_hash = job['id']
-					if not source_mediacache_exists:
+					if job['sourcecache'] and not source_mediacache_exists:
 						debug_print(f"source mediacache {source_cache_path} is missing ")
 						job['status'] = 'missing'
 						remove_old_grid(job_id_hash, 'source')
@@ -801,7 +825,7 @@ def update_job_listbox():
 					source_button = Button(source_frame, image=source_photo_image, command=lambda ft='source', j=job: select_job_file(source_frame, j, ft))
 					source_button.image = source_photo_image
 					source_button.pack(side='left', padx=5)
-				else:
+				elif job['sourcecache']:
 					source_button = create_job_thumbnail(source_frame, job, source_or_target='source')
 					if source_button:
 						source_button.pack(side='left', padx=5)
@@ -1118,12 +1142,15 @@ def select_job_file(parent, job, source_or_target):
 		if isinstance(job['sourcecache'], list):
 			source_cache_exists = all(os.path.exists(cache) for cache in job['sourcecache'])
 		else:
-			source_cache_exists = os.path.exists(job['sourcecache'])
-		
-		if source_cache_exists and os.path.exists(job['targetcache']):
-			job['status'] = 'pending'
-		else:
-			job['status'] = 'missing'
+			if job['sourcecache']:
+				source_cache_exists = os.path.exists(job['sourcecache'])
+				if source_cache_exists and os.path.exists(job['targetcache']):
+					job['status'] = 'pending'
+		if not job['sourcecache']: 
+			if os.path.exists(job['targetcache']):
+				job['status'] = 'pending'
+			else:
+				job['status'] = 'missing'
 
 		save_jobs(jobs_queue_file, jobs)
 		refresh_frame_listbox()
@@ -1186,13 +1213,33 @@ def create_job_thumbnail(parent, job, source_or_target):
 			except ValueError:
 				duration = 100
 			seek_time = duration * 0.10
+			job_args = job['job_args']
+			frame_number = None
 
-			cmd = [
-				'ffmpeg', '-ss', str(seek_time), '-i', file_path,
-				'-vf', f'thumbnail,scale=\'if(gt(a,1),{thumb_size},-1)\':\'if(gt(a,1),-1,{thumb_size})\',pad={thumb_size}:{thumb_size}:(ow-iw)/2:(oh-ih)/2:black',
-				'-vframes', '1',
-				'-y', thumbnail_path
-			]
+			if '--reference-frame-number' in job_args:
+				args_list = job_args.split()
+				if '--reference-frame-number' in args_list:
+					idx = args_list.index('--reference-frame-number')
+					if idx + 1 < len(args_list):
+						try:
+							frame_number = int(args_list[idx + 1])
+						except ValueError:
+							frame_number = None
+
+			if frame_number is not None:
+				cmd = [
+					'ffmpeg', '-i', file_path,
+					'-vf', f'select=eq(n\,{frame_number}),scale=\'if(gt(a,1),{thumb_size},-1)\':\'if(gt(a,1),-1,{thumb_size})\',pad={thumb_size}:{thumb_size}:(ow-iw)/2:(oh-ih)/2:black',
+					'-vframes', '1',
+					'-y', thumbnail_path
+				]
+			else:
+				cmd = [
+					'ffmpeg', '-ss', str(seek_time), '-i', file_path,
+					'-vf', f'thumbnail,scale=\'if(gt(a,1),{thumb_size},-1)\':\'if(gt(a,1),-1,{thumb_size})\',pad={thumb_size}:{thumb_size}:(ow-iw)/2:(oh-ih)/2:black',
+					'-vframes', '1',
+					'-y', thumbnail_path
+				]
 		result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		thumbnail_files.append(thumbnail_path)
 
@@ -1251,13 +1298,16 @@ def update_paths(job, path, source_or_target):
 	if source_or_target == 'output':
 		cache_key = 'output_path'
 		job[cache_key] = path
-	job['id'] = output_hash
 	
-	if not job['source_name'] == 'Null':
-		outputname = job['source_name'] + '-' + job['target_name'] + '-' + job['id']
+	if job['source_name']:
+		outputname = job['source_name'] + '-' + job['target_name']
 	else:
-		outputname = job['target_name'] + '-' + job['id']
-	job['full_output_path'] = os.path.join(job['output_path'], outputname + job['output_extension'])
+		outputname = job['target_name']
+	queueitup_job_id = outputname + '-' + output_hash
+	job['id'] = queueitup_job_id
+	job['hash'] = output_hash
+	job['outputname'] = outputname
+	job['full_output_path'] = os.path.join(job['output_path'], job['id'] + job['output_extension'])
 	save_jobs(jobs_queue_file, jobs)
 
 
@@ -1267,16 +1317,18 @@ def RUN_job_args(current_run_job):
 	if isinstance(current_run_job['sourcecache'], list):
 		arg_source_paths = ' '.join(f'-s "{p}"' for p in current_run_job['sourcecache'])
 	else:
-		arg_source_paths = f"-s \"{current_run_job['sourcecache']}\""
-		
+		if current_run_job['sourcecache']:
+			arg_source_paths = f"-s \"{current_run_job['sourcecache']}\""
+		else:
+			arg_source_paths = ""
 	arg_target_path = f"-t \"{current_run_job['targetcache']}\""
 	if FF_Does_Jobs:
-		outputname = current_run_job['full_output_path']
+		clioutputname = current_run_job['full_output_path']
 	else:
-		outputname = current_run_job['full_output_path']
+		clioutputname = current_run_job['output_path']
 
  
-	arg_output_path = f"-o \"{outputname}\""
+	arg_output_path = f"-o \"{clioutputname}\""
 	simulated_args = f"{arg_source_paths} {arg_target_path} {arg_output_path} {current_run_job['headless']} {current_run_job['job_args']}"
 	simulated_cmd = simulated_args.replace('\\\\', '\\')
 
@@ -1287,13 +1339,13 @@ def RUN_job_args(current_run_job):
 		simulated_args = f"{arg_source_paths} {arg_target_path} {arg_output_path} {current_run_job['headless']} {current_run_job['job_args']}"
 		simulated_cmd = simulated_args.replace('\\\\', '\\')
 
-		debug_print (f"{BLUE}python run.py --job-create {current_run_job['id']}")
+		debug_print (f"{YELLOW}--job-create {current_run_job['id']}")
 		process = subprocess.Popen(f"python run.py --job-create {current_run_job['id']}")	
 		process.wait()	# Wait for process to complete
-		debug_print (f"{BLUE}python run.py --job-add-step {current_run_job['id']} {simulated_cmd}")
+		#debug_print (f"{BLUE}python run.py --job-add-step {current_run_job['id']} {simulated_cmd}")
 		process = subprocess.Popen(f"python run.py --job-add-step {current_run_job['id']} {simulated_cmd}")	
 		process.wait()	# Wait for process to complete
-		debug_print (f"{BLUE}python run.py --job-submit {current_run_job['id']}")
+		#debug_print (f"{BLUE}python run.py --job-submit {current_run_job['id']}")
 		process = subprocess.Popen(
 			f"python run.py --job-submit {current_run_job['id']}",
 			shell=True,
@@ -1311,13 +1363,12 @@ def RUN_job_args(current_run_job):
 			text=True,
 			bufsize=1	 # Line-buffered
 		)	
-		# queueitup_job_id = (f"{current_run_job['id']}")
-		# print(queueitup_job_id)
+
 		# job_runner.run_job(queueitup_job_id, process_step)
 	else:
 		if automatic1111:
 
-			debug_print (f"{venv_python} {base_dir}\\run2.py {simulated_cmd}")
+			#debug_print (f"{venv_python} {base_dir}\\run2.py {simulated_cmd}")
 			process = subprocess.Popen(
 				f"{venv_python} {base_dir}\\run2.py {simulated_cmd}",
 				shell=True,
@@ -1327,7 +1378,7 @@ def RUN_job_args(current_run_job):
 				bufsize=1  # Line-buffered
 			)
 		else:
-			debug_print(f"{BLUE}python run.py {simulated_cmd}")
+			#debug_print(f"{BLUE}python run.py {simulated_cmd}")
 			process = subprocess.Popen(
 				f"python run.py {simulated_cmd}",
 				shell=True,
@@ -1633,9 +1684,7 @@ def load_jobs(file_path):
 	status_priority = {'editing': 0, 'executing': 1, 'pending': 2, 'failed': 3, 'missing': 4, 'completed': 5, 'archived': 6}
 	with open(file_path, 'r') as file:
 		jobs = json.load(file)
-	for job in jobs:
-		if 'id' not in job or not job['id']:
-			job['id'] = str(uuid.uuid4())[:8]
+
 	jobs.sort(key=lambda x: status_priority.get(x['status'], 6))
 	return jobs
 
@@ -1662,12 +1711,12 @@ def check_for_completed_failed_or_aborted_jobs():
 		if job['status'] == 'executing':
 			job['status'] = 'pending'
 			custom_print(f"{RED}A probable crash or aborted job execution was detected from your last use.... checking on status of unfinished jobs..{ENDC}\n\n")
+			source_basenames = ""
 			if isinstance(job['sourcecache'], list):
 				source_basenames = [os.path.basename(path) for path in job['sourcecache']]
-			else:
+			elif job['sourcecache']:
 				source_basenames = os.path.basename(job['sourcecache'])
-
-				custom_print(f"{GREEN}A job {GREEN}{source_basenames}{ENDC} to -> {GREEN}{os.path.basename(job['targetcache'])} was found that terminated early it will be moved back to the pending jobs queue - you have a Total of {PENDING_JOBS_COUNT + JOB_IS_RUNNING} in the Queue\n\n")
+			custom_print(f"{GREEN}A job {GREEN}{source_basenames}{ENDC} to -> {GREEN}{os.path.basename(job['targetcache'])} was found that terminated early it will be moved back to the pending jobs queue - you have a Total of {PENDING_JOBS_COUNT + JOB_IS_RUNNING} in the Queue\n\n")
 			save_jobs(jobs_queue_file, jobs)
 	if not keep_completed_jobs:
 		jobs_to_delete("completed")
@@ -1760,6 +1809,8 @@ def check_if_needed(job, source_or_target):
 			for key in ['sourcecache', 'targetcache']:
 				paths = other_job[key] if isinstance(other_job[key], list) else [other_job[key]]
 				for path in paths:
+					if path is None:
+						continue  # Skip the current iteration if path is None
 					normalized_path = os.path.normpath(path)
 					file_usage_counts[normalized_path] = file_usage_counts.get(normalized_path, 0) + 1
 
@@ -1767,26 +1818,25 @@ def check_if_needed(job, source_or_target):
 	if source_or_target in ['both', 'source']:
 		source_cache_paths = job['sourcecache'] if isinstance(job['sourcecache'], list) else [job['sourcecache']]
 		for source_cache_path in source_cache_paths:
-			normalized_source_path = os.path.normpath(source_cache_path)
-			file_use_count = file_usage_counts.get(normalized_source_path, 0)
-			if file_use_count < 2:
-				if os.path.exists(normalized_source_path):
-					try:
-						os.remove(normalized_source_path)
-						action_message = f"Successfully deleted the file: {GREEN}{os.path.basename(normalized_source_path)} {YELLOW}from the Temporary Mediacache Directory{ENDC} as it is no longer needed by any other jobs"
-					except Exception as e:
-						action_message = f"{RED}Failed to delete {YELLOW}{os.path.basename(normalized_source_path)} {YELLOW}from the Temporary Mediacache Directory{ENDC}: {e}"
+			if job['sourcecache']:
+				normalized_source_path = os.path.normpath(source_cache_path)
+				file_use_count = file_usage_counts.get(normalized_source_path, 0)
+				if file_use_count < 2:
+					if os.path.exists(normalized_source_path):
+						try:
+							os.remove(normalized_source_path)
+							action_message = f"Successfully deleted the file: {GREEN}{os.path.basename(normalized_source_path)} {YELLOW}from the Temporary Mediacache Directory{ENDC} as it is no longer needed by any other jobs"
+						except Exception as e:
+							action_message = f"{RED}Failed to delete {YELLOW}{os.path.basename(normalized_source_path)} {YELLOW}from the Temporary Mediacache Directory{ENDC}: {e}"
+					else:
+						action_message = f"{BLUE}No need to delete the file: {GREEN}{os.path.basename(normalized_source_path)} {YELLOW}from the Temporary Mediacache Directory{ENDC} as it does not exist."
 				else:
-					action_message = f"{BLUE}No need to delete the file: {GREEN}{os.path.basename(normalized_source_path)} {YELLOW}from the Temporary Mediacache Directory{ENDC} as it does not exist."
-			else:
-				action_message = f"{BLUE}Did not delete the file: {GREEN}{os.path.basename(normalized_source_path)} {YELLOW}from the Temporary Mediacache Directory{ENDC} as it's needed by another job."
-			debug_print(f"{action_message}\n\n")
-			print_existing_jobs()
+					action_message = f"{BLUE}Did not delete the file: {GREEN}{os.path.basename(normalized_source_path)} {YELLOW}from the Temporary Mediacache Directory{ENDC} as it's needed by another job."
+				debug_print(f"{action_message}\n\n")
+				print_existing_jobs()
 	# Check and handle targetcache path
 	if source_or_target in ['both', 'target']:
 		target_cache_path = job['targetcache']
-		if isinstance(target_cache_path, list):
-			target_cache_path = target_cache_path[0]  # Assuming the first element if it's erroneously a list
 		normalized_target_path = os.path.normpath(target_cache_path)
 		if file_usage_counts.get(normalized_target_path, 0) < 2:
 			if os.path.exists(normalized_target_path):
