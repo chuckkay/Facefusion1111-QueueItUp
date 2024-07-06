@@ -52,7 +52,7 @@ def on_ui_tabs():
         with gr.Tab("Facefusion with QueueItUp"):
             if QueueItUp.pre_render():
                 QueueItUp.count_existing_jobs()
-                QueueItUp.default_values = QueueItUp.get_values_from_globals("default_values")
+                QueueItUp.default_values = QueueItUp.get_values_from_FF("default_values")
                 QueueItUp.render()
                 QueueItUp.listen()
         with gr.Tab("Edit Queue"):
