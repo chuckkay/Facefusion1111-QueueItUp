@@ -31,13 +31,6 @@ STREAM_COUNTER = 0
 
 def get_content_analyser() -> Any:
     global CONTENT_ANALYSER
-
-    with thread_lock():
-        while process_manager.is_checking():
-            sleep(0.5)
-        if CONTENT_ANALYSER is None:
-            model_path = MODELS.get('open_nsfw').get('path')
-            CONTENT_ANALYSER = onnxruntime.InferenceSession(model_path, providers = apply_execution_provider_options(facefusion.globals.execution_providers))
     return CONTENT_ANALYSER
 
 
@@ -61,12 +54,7 @@ def analyse_stream(vision_frame : VisionFrame, video_fps : Fps) -> bool:
 
 def analyse_frame(vision_frame : VisionFrame) -> bool:
     content_analyser = get_content_analyser()
-    vision_frame = prepare_frame(vision_frame)
-    with conditional_thread_semaphore(facefusion.globals.execution_providers):
-        probability = content_analyser.run(None,
-        {
-            content_analyser.get_inputs()[0].name: vision_frame
-        })[0][0][1]
+
     return False #probability > PROBABILITY_LIMIT
 
 
