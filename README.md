@@ -1,4 +1,4 @@
- **Facefusion QueueItUp 2.5.3.9 for sd-webui**  Now with added BatchItUp feature
+ **Facefusion QueueItUp 2.5.3.9 for Automatic 1111**  Now with added BatchItUp feature
 
  For Automatic 1111
 ![Screenshot 2024-05-14 071928](https://github.com/chuckkay/Facefusion-QueueItUp-sd-webui/assets/10617746/818dd901-1934-4545-b43e-379585aceeea)
